@@ -47,7 +47,7 @@ cache/    # 统一缓存目录（如 Houdini 快照等）
     - Windows（提供 P4V Windows 查找逻辑）
     - Python 3.9+
     - PySide6（UI）
-    - Houdini 18.0+ / Maya 2020+（按需）
+    - Houdini 21/20.5 / Maya 2025+（按需）
 
 - 将仓库根路径加入 sys.path（两种方式任选其一）
     - 在 DCC 的启动脚本或 Shelf 中加入：
