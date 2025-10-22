@@ -43,11 +43,15 @@ cache/    # 统一缓存目录（如 Houdini 快照等）
 
 ## 安装与配置（配置方法）
 
-- 环境要求
+- 环境要求（推荐，主要是为了支持PySide6）
     - Windows（提供 P4V Windows 查找逻辑）
     - Python 3.9+
     - PySide6（UI）
-    - Houdini 21/20.5 / Maya 2025+（按需）
+    - **requests**（推荐，用于云端 AI API 调用，更好的 SSL 兼容性）
+        ```powershell
+        pip install requests
+        ```
+    - Houdini 21/20.5 / Maya 2025（按需）
 
 - 将仓库根路径加入 sys.path（两种方式任选其一）
     - 在 DCC 的启动脚本或 Shelf 中加入：
@@ -103,6 +107,70 @@ else:
 
 launcher.show_tool()
 ```
+
+### Houdini AI 助手
+
+功能概述：
+- 在 Houdini 工具窗口中新增 "AI 助手" 标签页，可与 OpenAI / DeepSeek / Ollama 模型对话，支持模型选择与系统提示。
+- **多轮对话**：完整保留对话历史，AI 能理解上下文并连续对话（修复了之前无法记住历史的问题）。
+- **快速响应模式**：默认开启，限制回复长度到 512 token 并缩短超时时间，大幅减少等待（推荐日常使用）。
+- **代理检测**：使用 DeepSeek 时自动检测系统代理并提示可能的连接问题。
+- **Houdini MCP 工具**：内置 "读取选中节点 / 搜索节点类型 / 创建节点" 三个快捷按钮，将当前场景上下文注入到对话中，支持一键建树。
+- **自动建树**：当用户在对话中描述需要搭建的节点网络时，AI 会在回答后附带 ```mcp``` 指令，工具会自动解析并在 Houdini 中创建对应节点及连线。
+- **🔄 开启新话题**：一键清空对话历史，重新开始新的对话主题。
+- **🖵 全屏对话**：独立窗口查看完整对话，支持复制全部内容。
+- **💾 导出对话**：保存对话为 .txt 或 .md 文件，方便归档重要讨论。
+- **⏰ 时间戳**：每条消息显示发送时间，清晰的对话时间线。
+
+提供商与模型：
+- **OpenAI（云端）**：gpt-4o-mini / gpt-4o / gpt-4o-mini-translate（需 API 配额）
+- **DeepSeek（云端）**（默认）：deepseek-chat / deepseek-coder（需 API 配额，响应较快，性价比高）
+- **Ollama（本地免费）**：llama3.1:8b-instruct / qwen2.5:7b-instruct / mistral:7b-instruct / phi3:mini（无需 API Key，速度最快）
+
+使用 Ollama（本地免费）
+- Windows 安装：到 https://ollama.com 下载并安装，启动后默认服务端口 11434。
+- 首次使用先拉取模型（示例）：
+    ```powershell
+    ollama pull llama3.1:8b-instruct
+    # 或者
+    ollama pull qwen2.5:7b-instruct
+    ```
+- 在工具里“提供商”选择 “Ollama（本地免费）”，选择对应模型即可对话。
+
+API Key 配置（二选一，用于 OpenAI / DeepSeek 云端）：
+- 环境变量（推荐）：在 Windows PowerShell 中设置后重启 Houdini。
+    ```powershell
+    # OpenAI
+    # 或项目专用变量名（工具同样识别）
+    [Environment]::SetEnvironmentVariable('DCC_AI_OPENAI_API_KEY', '<你的Key>', 'User')
+    
+    # DeepSeek
+    [Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', '<你的Key>', 'User')
+    # 或
+    [Environment]::SetEnvironmentVariable('DCC_AI_DEEPSEEK_API_KEY', '<你的Key>', 'User')
+- 工具内设置：点击 "设置 API Key…" 按钮，可将密钥保存到 `<repo>/config/houdini_ai.ini`（仅本机，不会入库）。
+
+性能优化提示：
+- 🔓 **关闭快速模式**：用于需要详细回答的场景，响应时间可能 15-30 秒
+- ⚡ **最快速度**：使用 Ollama 本地模型，响应时间 1-3 秒（需提前安装）
+
+常见错误与排查：
+- **401 认证失败**：检查 Key 是否正确、是否有权限访问对应模型。
+- **429/insufficient_quota 配额不足**：前往对应平台控制台查看套餐与账单，确认余额；或稍后再试。
+- **代理连接失败**：如果看到黄色警告横幅，说明检测到系统代理，建议清除或使用 Ollama。
+- **SSL 协议错误** (`EOF occurred in violation of protocol`)：
+  - **原因**：Houdini 内置 Python 的 OpenSSL 版本过旧，不支持现代 TLS 协议
+  - **解决方案**：
+    1. **推荐**：安装 `requests` 库（更好的 SSL 兼容性）
+       ```powershell
+       # 在 Houdini Python 环境中安装
+       "C:\Program Files\Side Effects Software\Houdini 21.0.000\python39\python.exe" -m pip install requests
+       # 或使用系统 Python
+       pip install requests
+    3. 检查 OpenSSL 版本：`python -c "import ssl; print(ssl.OPENSSL_VERSION)"`
+
+安全提示：
+- 不要将 API Key 明文提交到代码库。优先使用环境变量，或使用本机 INI 保存（已被 `.gitignore` 忽略）。
 
 ## Maya 工具（Suichiku 的 Maya 工具箱）
 
