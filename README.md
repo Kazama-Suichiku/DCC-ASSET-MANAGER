@@ -7,23 +7,56 @@
 ```
 DCC-ASSET-MANAGER/
 ├── launcher.py                  # 统一启动器（自动检测 DCC 并启动对应工具）
+├── config/                      # 统一配置目录（运行后自动创建）
+│   ├── houdini_ai.ini          # Houdini AI 助手配置（API Key 等）
+│   ├── houdini_asset_checker.ini
+│   └── maya_asset_check.ini    # Maya 资产检查配置
+├── cache/                       # 统一缓存目录（运行后自动创建）
+│   └── [Houdini 场景快照等]
 ├── shared/                      # 共享模块
-│   ├── common_utils.py          # 仓库根/配置/缓存 路径工具
-│   └── p4v_utils.py             # P4V 查找/启动（Maya/Houdini 共用）
-├── HOUDINI_HIP_MANAGER/         # Houdini 工具
-│   ├── main.py
-│   ├── core/
-│   ├── ui/
-│   └── utils/
-└── MAYA_MANAGER/                # Maya 工具（Suichiku 的 Maya 工具箱）
-    ├── maya_main.py             # Maya 入口
-    ├── core/
-    ├── ui/
-    └── utils/
-
-# 运行后会在仓库下生成/使用：
-config/   # 统一配置目录（各 DCC 的配置文件都在这里）
-cache/    # 统一缓存目录（如 Houdini 快照等）
+│   ├── __init__.py
+│   ├── common_utils.py         # 仓库根/配置/缓存路径工具
+│   └── p4v_utils.py            # P4V 查找/启动（Maya/Houdini 共用）
+├── HOUDINI_HIP_MANAGER/        # Houdini 工具
+│   ├── main.py                 # Houdini 入口
+│   ├── QUICK_SHELF_CODE.py     # 快速 Shelf 代码
+│   ├── SHELF_TOOL_SETUP.md     # Shelf 设置说明
+│   ├── core/                   # 核心逻辑
+│   │   ├── __init__.py
+│   │   ├── hip_manager.py      # HIP 文件管理器主窗口
+│   │   └── asset_checker.py    # 资产检查器
+│   ├── ui/                     # UI 组件
+│   │   ├── __init__.py
+│   │   ├── ai_tab.py          # AI 助手标签页（主界面）
+│   │   ├── chat_window.py     # 全屏对话窗口
+│   │   ├── widgets.py         # 自定义控件（浮动图标、加载动画等）
+│   │   └── dialogs.py         # 对话框
+│   └── utils/                  # 工具函数
+│       ├── __init__.py
+│       ├── ai_client.py       # AI API 客户端（OpenAI/DeepSeek/Ollama）
+│       ├── common_utils.py    # 通用工具
+│       ├── hip_utils.py       # HIP 文件操作
+│       ├── p4v_utils.py       # P4V 集成
+│       └── mcp/               # MCP（Model Context Protocol）系统
+│           ├── __init__.py
+│           ├── client.py      # MCP 客户端（节点操作）
+│           ├── server.py      # MCP 服务器
+│           ├── logger.py      # 日志
+│           └── settings.py    # 设置
+└── MAYA_MANAGER/               # Maya 工具（Suichiku 的 Maya 工具箱）
+    ├── maya_main.py            # Maya 入口
+    ├── core/                   # 核心逻辑
+    │   ├── __init__.py
+    │   └── asset_checker.py   # 资产检查器
+    ├── ui/                     # UI 组件
+    │   ├── __init__.py
+    │   ├── main_window.py     # 主窗口
+    │   ├── asset_check_tab.py # 资产检查标签页
+    │   └── export_tab.py      # 导出标签页
+    └── utils/                  # 工具函数
+        ├── __init__.py
+        ├── export_utils.py    # 导出工具
+        └── p4v_utils.py       # P4V 集成
 ```
 
 ## 统一启动
@@ -110,22 +143,40 @@ launcher.show_tool()
 
 ### Houdini AI 助手
 
-功能概述：
-- 在 Houdini 工具窗口中新增 "AI 助手" 标签页，可与 OpenAI / DeepSeek / Ollama 模型对话，支持模型选择与系统提示。
-- **多轮对话**：完整保留对话历史，AI 能理解上下文并连续对话（修复了之前无法记住历史的问题）。
-- **快速响应模式**：默认开启，限制回复长度到 512 token 并缩短超时时间，大幅减少等待（推荐日常使用）。
-- **代理检测**：使用 DeepSeek 时自动检测系统代理并提示可能的连接问题。
-- **Houdini MCP 工具**：内置 "读取选中节点 / 搜索节点类型 / 创建节点" 三个快捷按钮，将当前场景上下文注入到对话中，支持一键建树。
-- **自动建树**：当用户在对话中描述需要搭建的节点网络时，AI 会在回答后附带 ```mcp``` 指令，工具会自动解析并在 Houdini 中创建对应节点及连线。
-- **🔄 开启新话题**：一键清空对话历史，重新开始新的对话主题。
-- **🖵 全屏对话**：独立窗口查看完整对话，支持复制全部内容。
-- **💾 导出对话**：保存对话为 .txt 或 .md 文件，方便归档重要讨论。
-- **⏰ 时间戳**：每条消息显示发送时间，清晰的对话时间线。
+**核心功能:**
+- **智能对话** - 与 OpenAI/DeepSeek/Ollama 模型对话，获取 Houdini 技术支持
+- **完整对话历史** - 多轮对话，AI 能理解上下文并连续回答
+- **快速响应模式** - 限制 512 tokens 和 30 秒超时，快速获取简短答案（默认开启）
+- **标准模式** - 2048 tokens 和 120 秒超时，适合复杂问题和节点网络生成
 
-提供商与模型：
-- **OpenAI（云端）**：gpt-4o-mini / gpt-4o / gpt-4o-mini-translate（需 API 配额）
-- **DeepSeek（云端）**（默认）：deepseek-chat / deepseek-coder（需 API 配额，响应较快，性价比高）
-- **Ollama（本地免费）**：llama3.1:8b-instruct / qwen2.5:7b-instruct / mistral:7b-instruct / phi3:mini（无需 API Key，速度最快）
+**Houdini MCP 集成（Model Context Protocol）:**
+- **读取选中节点** - 将当前选中节点的详细信息注入对话（类型、参数、错误等）
+  - ☑️ **包含所有参数** - 可选读取节点的所有参数值（键值对形式）
+- **搜索节点类型** - 搜索 Houdini 中可用的节点类型
+- **查询文档** - 查询 Houdini 官方文档（支持 Labs 节点如 `sop/labs::splatter`）
+- **创建节点** - 手动创建单个节点
+- **自动建树** - AI 自动生成 ```mcp``` 代码块，工具解析后在 Houdini 中创建节点网络
+  - 支持的 MCP 动作：`create_nodes`, `set_parameter`, `connect_nodes`, `delete_node`
+  - 智能错误提示：使用错误动作名（如 `set_parm`）时提供友好建议
+
+**对话管理:**
+- **🔄 开启新话题** - 清空对话历史，重新开始（系统提示会自动重新添加）
+- **🖵 全屏对话** - 独立窗口查看完整对话，支持 Context 消息显示
+- **💾 导出对话** - 保存为 .txt 或 .md 文件，包含时间戳和元数据
+- **⏰ 时间戳** - 每条消息显示发送时间
+
+**用户体验优化:**
+- **加载动画** - 旋转的圆点加载指示器，清晰的"正在请求..."提示
+- **浮动图标** - 最小化到桌面浮动图标，右键菜单快速操作
+- **窗口状态管理** - 系统最小化按钮自动转换为浮动图标，状态始终一致
+- **无控制台输出** - 所有反馈通过 UI 显示，不污染 Houdini 控制台
+- **超时重试** - DeepSeek 请求超时自动重试 2 次，提供详细错误提示
+- **代理检测** - 使用 DeepSeek 时自动检测系统代理并提示可能的连接问题
+
+**提供商与模型:**
+- **OpenAI（云端）** - gpt-4o-mini / gpt-4o / gpt-4o-mini-translate（需 API Key）
+- **DeepSeek（云端）**（默认） - deepseek-chat / deepseek-coder（性价比高，响应快）
+- **Ollama（本地免费）** - llama3.1:8b-instruct / qwen2.5:7b-instruct / mistral:7b-instruct / phi3:mini（无需 API Key）
 
 使用 Ollama（本地免费）
 - Windows 安装：到 https://ollama.com 下载并安装，启动后默认服务端口 11434。
@@ -137,40 +188,57 @@ launcher.show_tool()
     ```
 - 在工具里“提供商”选择 “Ollama（本地免费）”，选择对应模型即可对话。
 
-API Key 配置（二选一，用于 OpenAI / DeepSeek 云端）：
-- 环境变量（推荐）：在 Windows PowerShell 中设置后重启 Houdini。
+**API Key 配置（二选一，用于 OpenAI/DeepSeek 云端）:**
+
+1. **环境变量（推荐）** - 在 Windows PowerShell 中设置后重启 Houdini
+   ```powershell
+   # OpenAI
+   [Environment]::SetEnvironmentVariable('OPENAI_API_KEY', '<你的Key>', 'User')
+   # 或项目专用变量名
+   [Environment]::SetEnvironmentVariable('DCC_AI_OPENAI_API_KEY', '<你的Key>', 'User')
+   
+   # DeepSeek
+   [Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', '<你的Key>', 'User')
+   # 或
+   [Environment]::SetEnvironmentVariable('DCC_AI_DEEPSEEK_API_KEY', '<你的Key>', 'User')
+   ```
+
+2. **工具内设置** - 点击"设置 API Key…"按钮
+   - 输入对应提供商的 API Key
+   - 勾选"保存到本机配置"可将密钥保存到 `config/houdini_ai.ini`（仅本机，已被 .gitignore 忽略）
+   - 或仅在当前会话使用（不保存到文件）
+
+3. **Ollama 本地服务**（可选）
+   - 默认连接 `http://127.0.0.1:11434`
+   - 可在工具内或 `config/houdini_ai.ini` 中自定义：`ollama_base_url:http://your-ip:11434`
+
+**性能优化与使用建议:**
+- ⚡ **快速模式（默认）** - 512 tokens/30s，适合快速问答和简单节点创建
+- 🔓 **标准模式** - 2048 tokens/120s，适合复杂节点网络生成和详细解答
+- 🚀 **最快速度** - 使用 Ollama 本地模型，响应时间 1-3 秒（需提前安装）
+- 💡 **MCP 使用技巧** - 开启新话题后，明确告诉 AI"请使用 MCP 指令创建节点"效果更好
+
+**常见错误与排查:**
+- **401 认证失败** - 检查 API Key 是否正确、是否有权限访问对应模型
+- **429/insufficient_quota** - 配额不足，前往平台控制台查看套餐与账单
+- **代理连接失败** - 如果看到黄色警告横幅，说明检测到系统代理，建议清除或使用 Ollama
+- **SSL 协议错误** (`EOF occurred in violation of protocol`)
+  - **原因** - Houdini 内置 Python 的 OpenSSL 版本过旧
+  - **解决方案** - 安装 `requests` 库（更好的 SSL 兼容性）
     ```powershell
-    # OpenAI
-    # 或项目专用变量名（工具同样识别）
-    [Environment]::SetEnvironmentVariable('DCC_AI_OPENAI_API_KEY', '<你的Key>', 'User')
-    
-    # DeepSeek
-    [Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', '<你的Key>', 'User')
-    # 或
-    [Environment]::SetEnvironmentVariable('DCC_AI_DEEPSEEK_API_KEY', '<你的Key>', 'User')
-- 工具内设置：点击 "设置 API Key…" 按钮，可将密钥保存到 `<repo>/config/houdini_ai.ini`（仅本机，不会入库）。
+    "C:\Program Files\Side Effects Software\Houdini 21.0.000\python39\python.exe" -m pip install requests
+    ```
+- **JSON 解析失败/生成中断**
+  - 可能是响应超时或内容过长被截断
+  - 建议简化请求或开启快速模式
+  - 或分多次创建（先创建几个节点，再创建其他节点）
+- **AI 不使用 MCP 指令**
+  - 开启新话题后明确要求："请使用 MCP 指令创建节点"
+  - 系统提示词会自动重新添加，但 AI 需要明确指示
 
-性能优化提示：
-- 🔓 **关闭快速模式**：用于需要详细回答的场景，响应时间可能 15-30 秒
-- ⚡ **最快速度**：使用 Ollama 本地模型，响应时间 1-3 秒（需提前安装）
-
-常见错误与排查：
-- **401 认证失败**：检查 Key 是否正确、是否有权限访问对应模型。
-- **429/insufficient_quota 配额不足**：前往对应平台控制台查看套餐与账单，确认余额；或稍后再试。
-- **代理连接失败**：如果看到黄色警告横幅，说明检测到系统代理，建议清除或使用 Ollama。
-- **SSL 协议错误** (`EOF occurred in violation of protocol`)：
-  - **原因**：Houdini 内置 Python 的 OpenSSL 版本过旧，不支持现代 TLS 协议
-  - **解决方案**：
-    1. **推荐**：安装 `requests` 库（更好的 SSL 兼容性）
-       ```powershell
-       # 在 Houdini Python 环境中安装
-       "C:\Program Files\Side Effects Software\Houdini 21.0.000\python39\python.exe" -m pip install requests
-       # 或使用系统 Python
-       pip install requests
-    3. 检查 OpenSSL 版本：`python -c "import ssl; print(ssl.OPENSSL_VERSION)"`
-
-安全提示：
-- 不要将 API Key 明文提交到代码库。优先使用环境变量，或使用本机 INI 保存（已被 `.gitignore` 忽略）。
+**安全提示:**
+- 不要将 API Key 明文提交到代码库
+- 优先使用环境变量，或使用本机 INI 保存（已被 `.gitignore` 忽略）
 
 ## Maya 工具（Suichiku 的 Maya 工具箱）
 
@@ -307,17 +375,10 @@ KazamaSuichiku
 
 ---
 
-## 版本历史
+## 作者
 
-- v2.2
-    - 导出：仅导出所选对象；新增“合并导出为一个文件”开关与“导出帮助”说明
-    - 资产检查：UV 集与面数检查支持“目标后缀”过滤；新增批量前后缀重命名与“一键米（m）”
-    - 共享：合并 Maya/Houdini 的 P4V 工具到 `shared/p4v_utils.py`
-- v2.1
-    - 集成 Maya 工具箱（资产检查 UI、模型导出、显眼场景告警）
-    - 统一 config/cache 路径，Houdini 快照迁移至 cache/
-- v2.0
-    - 重构为多 DCC 支持架构
-- v1.0
-    - Houdini HIP Manager 初始版本
+KazamaSuichiku
 
+## 许可证
+
+内部工具，仅供项目使用
